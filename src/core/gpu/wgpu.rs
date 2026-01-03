@@ -61,7 +61,7 @@ impl Drop for WgpuWrapper {
         self.pipeline = PipelineType::None;
         self.bind_group = None;
 
-        let _ = self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+        let _ = self.device.poll(wgpu::PollType::Wait);
     }
 }
 
@@ -77,7 +77,7 @@ impl WgpuWrapper {
     pub fn list_devices() -> Vec<String> {
         if ADAPTERS.read().is_empty() {
             let devices = std::panic::catch_unwind(|| -> Vec<Adapter> {
-                pollster::block_on(INSTANCE.lock().enumerate_adapters(wgpu::Backends::all())).into_iter().filter(|x| !EXCLUSIONS.iter().any(|e| x.get_info().name.contains(e))).collect()
+                INSTANCE.lock().enumerate_adapters(wgpu::Backends::all()).into_iter().filter(|x| !EXCLUSIONS.iter().any(|e| x.get_info().name.contains(e))).collect()
             });
             match devices {
                 Ok(devices) => { *ADAPTERS.write() = devices; },
@@ -203,7 +203,6 @@ impl WgpuWrapper {
                             required_limits: limits,
                             memory_hints: wgpu::MemoryHints::Performance,
                             trace: wgpu::Trace::Off,
-                            experimental_features: wgpu::ExperimentalFeatures::disabled(),
                         }).map_err(|e| WgpuError::RequestDevice(e))?
                     }
                 },
@@ -227,7 +226,6 @@ impl WgpuWrapper {
                             required_limits: limits.clone(),
                             memory_hints: wgpu::MemoryHints::Performance,
                             trace: wgpu::Trace::Off,
-                            experimental_features: wgpu::ExperimentalFeatures::disabled(),
                         }));
                         if let Err(e) = &device {
                             let e_str = format!("{e:?}");
@@ -251,7 +249,7 @@ impl WgpuWrapper {
                 }
             };
 
-            device.on_uncaptured_error(std::sync::Arc::new(|e| {
+            device.on_uncaptured_error(Box::new(|e| {
                 log::error!("Uncaptured device error: {e:?}");
             }));
 
@@ -337,7 +335,7 @@ impl WgpuWrapper {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
                 bind_group_layouts: &[&bind_group_layout],
-                immediate_size: 0
+                push_constant_ranges: &[],
             });
 
             let compilation_options = wgpu::PipelineCompilationOptions {
@@ -374,7 +372,7 @@ impl WgpuWrapper {
                         topology: wgpu::PrimitiveTopology::TriangleStrip,
                         ..wgpu::PrimitiveState::default()
                     },
-                    multiview_mask: None,
+                    multiview: None,
                     depth_stencil: None,
                     multisample: wgpu::MultisampleState::default(),
                     cache: Default::default()
@@ -495,7 +493,6 @@ impl WgpuWrapper {
                         },
                         depth_slice: None
                     })],
-                    multiview_mask: None,
                     depth_stencil_attachment: None,
                 });
                 rpass.set_pipeline(p);
@@ -514,7 +511,7 @@ impl WgpuWrapper {
                 let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
                 buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
 
-                let _ = self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None });
+                let _ = self.device.poll(wgpu::PollType::Wait);
 
                 if let Some(Ok(())) = pollster::block_on(receiver.receive()) {
                     let data = buffer_slice.get_mapped_range();

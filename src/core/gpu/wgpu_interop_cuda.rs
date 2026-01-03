@@ -99,7 +99,6 @@ pub fn get_current_device_id_by_uuid(adapters: &Vec<wgpu::Adapter>) -> usize {
                 required_limits: wgpu::Limits::default(),
                 memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
             }));
             if let Ok((device, _q)) = device {
                 unsafe {
@@ -261,7 +260,7 @@ pub fn allocate_shared_cuda_memory(size: usize) -> Result<CudaSharedMemory, Box<
                         Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
                         RootDirectory: HANDLE::default(),
                         ObjectName: std::ptr::null_mut(),
-                        Attributes: OBJECT_ATTRIBUTE_FLAGS::default(),
+                        Attributes: 0,
                         SecurityDescriptor: sec_desc.0 as *const _,
                         SecurityQualityOfService: std::ptr::null_mut(),
                     })
