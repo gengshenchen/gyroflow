@@ -46,26 +46,40 @@ export DYLD_FALLBACK_LIBRARY_PATH := if os() == "macos" { if path_exists(`xcode-
 export MACOSX_DEPLOYMENT_TARGET := "10.15"
 # ――――――――――――――――――――――――――――――――――――――― MacOS ―――――――――――――――――――――――――――――――――――――――――
 
-# ――――――――――――――――――――――――――――――――――――――― Clang ―――――――――――――――――――――――――――――――――――――――――
-LlvmConfigExists := if os() == "linux" { `which llvm-config > /dev/null && echo true || echo false` } else { "false" }
+# ――――――――――――――――――――――――――――――――――――――― Clang (Fixed) ―――――――――――――――――――――――――――――――――――――――――
+
+LlvmConfig := if os() == "linux" { `which llvm-config-19 || which llvm-config-18 || which llvm-config-17 || which llvm-config-16 || which llvm-config-15 || which llvm-config || echo ""` } else { "" }
+
+LlvmConfigExists := if "{{LlvmConfig}}" != "" { "true" } else { "false" }
+
 export LIBCLANG_PATH := if os() == "macos" {
-   DYLD_FALLBACK_LIBRARY_PATH
+    if path_exists("/opt/homebrew/opt/llvm/lib") == "true" {
+        "/opt/homebrew/opt/llvm/lib"
+    } else if path_exists("/usr/local/opt/llvm/lib") == "true" {
+        "/usr/local/opt/llvm/lib"
+    } else {
+        `xcode-select -p` + "/usr/lib"
+    }
 } else {
-   if path_exists(ExtDir / "llvm/bin") == "true" {
-      ExtDir / "llvm/bin"
-   } else {
-      env_var_or_default("LIBCLANG_PATH", if "{{LlvmConfigExists}}" == "true" {
-         `llvm-config --libdir`
-      } else {
-         if path_exists("/usr/lib/llvm-13/lib/") == "true" { "/usr/lib/llvm-13/lib/" } else { "" }
-      })
-   }
+    if path_exists(ExtDir / "llvm/lib") == "true" {
+        ExtDir / "llvm/lib"
+    } else {
+        env_var_or_default("LIBCLANG_PATH", if "{{LlvmConfigExists}}" == "true" {
+            `{{LlvmConfig}} --libdir`
+        } else {
+            if path_exists("/usr/lib/llvm-18/lib/") == "true" { "/usr/lib/llvm-18/lib/" }
+            else if path_exists("/usr/lib/llvm-17/lib/") == "true" { "/usr/lib/llvm-17/lib/" }
+            else if path_exists("/usr/lib/llvm-16/lib/") == "true" { "/usr/lib/llvm-16/lib/" }
+            else if path_exists("/usr/lib/llvm-15/lib/") == "true" { "/usr/lib/llvm-15/lib/" }
+            else if path_exists("/usr/lib/llvm-14/lib/") == "true" { "/usr/lib/llvm-14/lib/" }
+            else if path_exists("/usr/lib/llvm-13/lib/") == "true" { "/usr/lib/llvm-13/lib/" }
+            else { "" }
+        })
+    }
 }
+
 LLVMPath := LIBCLANG_PATH
-# ――――――――――――――――――――――――――――――――――――――― Clang ―――――――――――――――――――――――――――――――――――――――――
-
-
-export LD_LIBRARY_PATH := ProjectDir / "target/release:" + QtPath / "../lib:" + FFMPEG_DIR + "/lib:" + FFMPEG_DIR + "/lib/" + FFMPEG_ARCH
+# ――――――――――――――――――――――――――――――――――――――― Clang ―――――――――――――――――――――――――――――――――――――――――export LD_LIBRARY_PATH := ProjectDir / "target/release:" + QtPath / "../lib:" + FFMPEG_DIR + "/lib:" + FFMPEG_DIR + "/lib/" + FFMPEG_ARCH
 
 export PATH := QtPath + PathSep + FFMPEG_DIR + "/bin" + PathSep + FFMPEG_DIR + "/bin/" + FFMPEG_ARCH + PathSep + OpenCVPath + "/bin" + PathSep + LLVMPath + PathSep + env_var('PATH')
 

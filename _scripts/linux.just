@@ -14,15 +14,37 @@ PackageSuffix    := if Arch == "aarch64" { "linux-arm64" } else { "linux64" }
 install-deps:
     #!/bin/bash
     set -e
+    if [ ! -x "$(command -v sudo)" ] || [ ! -x "$(command -v curl)" ]; then
+        echo "Basic tools missing, updating apt..."
+        apt-get update && apt-get install -y sudo curl
+    fi
 
     echo "Installing dependencies $LIBCLANG_PATH {{AptGetExists}}"
     if [ "{{AptGetExists}}" == "true" ]; then
-        sudo apt-get install -y p7zip-full python3-pip python3-venv clang libclang-dev bison pkg-config gperf curl unzip zip git
+        sudo apt-get install -y p7zip-full python3-pip python3-venv clang libclang-dev bison pkg-config gperf curl unzip zip git file
         sudo apt-get install -y libc++-dev libva-dev libvdpau-dev libvdpau1 mesa-va-drivers ocl-icd-opencl-dev opencl-headers
         sudo apt-get install -y libpulse-dev libasound-dev libxkbcommon-dev
         sudo apt-get install -y libfontconfig1 libfreetype6
         sudo apt-get install -y libstdc++-12-dev || true
         sudo apt-get install -y libstdc++-8-dev || true
+    fi
+
+    if ! command -v appimagetool &> /dev/null; then
+        echo "appimagetool not found, auto-installing..."
+        ARCH_TYPE=$(uname -m)
+        if [ "$ARCH_TYPE" == "x86_64" ]; then
+            TOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+        elif [ "$ARCH_TYPE" == "aarch64" ]; then
+            TOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage"
+        else
+            echo "Error: Unknown architecture for appimagetool: $ARCH_TYPE"
+            exit 1
+        fi
+
+        # Download and install to system path
+        sudo curl -L $TOOL_URL -o /usr/local/bin/appimagetool
+        sudo chmod +x /usr/local/bin/appimagetool
+        echo "appimagetool installed to /usr/local/bin/"
     fi
 
     mkdir -p {{ExtDir}}
@@ -371,26 +393,28 @@ deploy *param:
         cp $PROJECT_DIR/_deployment/linux/AppImageBuilder.yml AppImageBuilder-arm64.yml
         sed -i 's|x86_64|aarch64|' AppImageBuilder-arm64.yml
         sed -i 's|amd64|aarch64|' AppImageBuilder-arm64.yml
-        appimage-builder --recipe AppImageBuilder-arm64.yml
+        sudo -E appimage-builder --recipe AppImageBuilder-arm64.yml
         rm AppImageBuilder-arm64.yml
     else
-        appimage-builder --recipe $PROJECT_DIR/_deployment/linux/AppImageBuilder.yml
+        sudo -E appimage-builder --recipe $PROJECT_DIR/_deployment/linux/AppImageBuilder.yml
     fi
+    sudo chown -R $USER:$USER .
     chmod +x Gyroflow-${APP_VERSION}-{{ArchName}}.AppImage
 
     # Try to fix AppImage permissions
     ./Gyroflow-${APP_VERSION}-{{ArchName}}.AppImage --appimage-extract
     rm -f Gyroflow-${APP_VERSION}-{{ArchName}}.AppImage
     sudo chmod 755 squashfs-root
-    find ./squashfs-root -type d -exec sudo chmod 755 {} \;
+    sudo find ./squashfs-root -type d -exec sudo chmod 755 {} \;
+    sudo rm -rf Gyroflow.AppDir
     mv squashfs-root Gyroflow.AppDir
-    ARCH={{Arch}} appimagetool ./Gyroflow.AppDir
-    rm -rf Gyroflow.AppDir
+    ARCH={{Arch}} sudo -E appimagetool ./Gyroflow.AppDir
+    sudo rm -rf Gyroflow.AppDir
 
     mv Gyroflow-{{ArchName}}.AppImage Gyroflow-{{PackageSuffix}}.AppImage
     # ---- Build AppImage ----
 
-    rm -rf $APP_DIR
-    rm -rf $TARGET
+    sudo rm -rf $APP_DIR
+    sudo rm -rf $TARGET
 
     popd

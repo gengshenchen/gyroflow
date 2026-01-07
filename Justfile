@@ -3,6 +3,10 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 BaseFile := os()
 
 run *param:
+    export https_proxy=http://127.0.0.1:7897; \
+    export http_proxy=http://127.0.0.1:7897; \
+    export all_proxy=http://127.0.0.1:7897; \
+    export LD_LIBRARY_PATH=$(pwd)/ext/ffmpeg-8.0-linux-clang-gpl-lite/lib/amd64:$(pwd)/ext/6.4.3/gcc_64/lib:${LD_LIBRARY_PATH:-}; \
     just -f _scripts/{{BaseFile}}.just run {{param}}
 
 test *param:
