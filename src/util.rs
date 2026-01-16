@@ -265,13 +265,21 @@ pub fn init_logging() {
     qmetaobject::log::init_qt_to_rust();
 
     qml_video_rs::video_item::MDKVideoItem::setLogHandler(|level: i32, text: &str| {
-        match level {
-            1 => { ::log::error!(target: "mdk", "[MDK] {}", text.trim()); },
-            2 => { ::log::warn!(target: "mdk", "[MDK] {}", text.trim()); },
-            3 => { ::log::info!(target: "mdk", "[MDK] {}", text.trim()); },
-            4 => { ::log::debug!(target: "mdk", "[MDK] {}", text.trim()); },
-            _ => { }
-        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Fix crash on exit: MDK logs from C++ destructors during thread teardown.
+            // Logging at this stage triggers std::thread::current() panic in simplelog.
+            if text.contains("~Data") || text.contains("::~") {
+                return;
+            }
+
+            match level {
+                1 => { ::log::error!(target: "mdk", "[MDK] {}", text.trim()); },
+                2 => { ::log::warn!(target: "mdk", "[MDK] {}", text.trim()); },
+                3 => { ::log::info!(target: "mdk", "[MDK] {}", text.trim()); },
+                4 => { ::log::debug!(target: "mdk", "[MDK] {}", text.trim()); },
+                _ => { }
+            }
+        }));
     });
 }
 

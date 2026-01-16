@@ -52,7 +52,7 @@ impl Drop for ThreadLocalWgpuCache {
     fn drop(&mut self) {
         // Workaround for a Vulkan hang on device destroy (https://github.com/gfx-rs/wgpu/issues/4973)
         let inner = self.0.replace(lru::LruCache::new(std::num::NonZeroUsize::new(1).unwrap()));
-        std::thread::spawn(move || drop(inner));
+        std::mem::forget(inner);
     }
 }
 
